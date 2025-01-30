@@ -6,46 +6,46 @@
 import pyautogui
 import time
 from pynput import mouse
+import json
 
-# Variable to track last known mouse position and time
-last_position = pyautogui.position()
-last_time = time.time()
+# Variable to track recording state, file, and session data
 recording = False  # Start with recording off
 log_file = None
 file_counter = 1
+mouse_positions = []
+session_start_time = None
 
 def on_move(x, y):
-    global last_position, last_time, recording, log_file
-    # Logs current position of the mouse;
-    print(f"({x}, {y})")
-    if not recording or log_file is None:
+    global recording, mouse_positions
+    print(f"Current Mouse Position: ({x}, {y})")
+    if not recording:
         return
     
-    # Records time of the movement;
-    current_time = time.time()
-    duration = current_time - last_time
-    
-    if (x, y) != last_position:
-        with open(log_file, "a") as file:
-            file.write(f"Start: {last_position}, End: ({x}, {y}), Start Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_time))}, End Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}, Duration: {duration:.4f} sec\n")
-        last_position = (x, y)
-        last_time = current_time
+    mouse_positions.append((x, y))
 
-# Creating new file and recording positions and time on mouse click event;
 def on_click(x, y, button, pressed):
-    global recording, log_file, file_counter
+    global recording, log_file, file_counter, mouse_positions, session_start_time
     if pressed and button == mouse.Button.left:
         if recording:
             print("Mouse left click detected. Stopping recording.")
+            if log_file:
+                total_time = round(time.time() - session_start_time, 4)
+                session_data = {
+                    "movements": mouse_positions,
+                    "total_time": total_time
+                }
+                with open(log_file, "w") as file:
+                    json.dump(session_data, file, indent=4)
             recording = False
             log_file = None
+            mouse_positions = []
         else:
-            log_file = f"mouse_movement_log_{file_counter}.txt"
+            log_file = f"mouse_movement_log_{file_counter}.json"
             file_counter += 1
             print(f"Mouse left click detected. Starting new recording in {log_file}.")
-            with open(log_file, "w") as file:
-                file.write("New Recording Session:\n")
             recording = True
+            mouse_positions = []
+            session_start_time = time.time()
 
 # Start listening to mouse events
 with mouse.Listener(on_move=on_move, on_click=on_click) as listener:
